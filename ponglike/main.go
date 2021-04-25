@@ -33,6 +33,7 @@ var (
 
 	balls []*Ball
 	bOrig []Ball
+	initSpeed = float64(4)
 )
 
 
@@ -59,9 +60,11 @@ func init() {
 		x := minX + (rand.Float64() * (float64(screenX) - minX * 2))
 		y := minY + (rand.Float64() * (float64(screenY) - minY * 2))
 
+		vx := (rand.Float64() - 0.5) * 2 * initSpeed
+		vy := (rand.Float64() - 0.5) * 2 * initSpeed
 		b := Ball{
-			Pos: vec.NewWithValues([]float64{ x , y}),
-			Vel: vec.NewWithValues([]float64{rand.Float64() * 10,rand.Float64() * 10}),
+			Pos: vec.NewWithValues([]float64{x, y}),
+			Vel: vec.NewWithValues([]float64{vx, vy}),
 		}
 		balls = append(balls, &b)
 	}
@@ -86,10 +89,36 @@ func (g *Game) Update() error {
 		}
 	}
 
+	// add attraction
+	for _, b := range( balls) {
+		for _, b2 := range( balls) {
+			if b2 == b{	continue }
+			dif := vec.Subtract(b2.Pos, b.Pos)
+			dif.Scale((1/Delta) * 0.001)
+			b.Vel = vec.Add(b.Vel, dif)
+
+		}
+	}
+
+	// resolve
 	for _, b := range( balls) {
 		amount := b.Vel.Clone()
-		amount.Scale(1/float64(Delta))
-		b.Pos = vec.Add(b.Pos, amount)
+		amount.Scale(1/Delta)
+		nextPos := vec.Add(b.Pos, amount)
+
+		if nextPos[0] > float64(screenX){
+			nextPos[0] = 0
+		}else if nextPos[0] < 0{
+			nextPos[0] = float64(screenX)
+		}
+		if nextPos[1] > float64(screenY){
+			nextPos[1] = 0
+		} else if nextPos[1] < 0{
+			nextPos[1] = float64(screenY)
+		}
+		
+
+		b.Pos = nextPos
 	}
 
 	return nil
