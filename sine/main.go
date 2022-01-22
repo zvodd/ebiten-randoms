@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	_ "image/png"
 	"log"
@@ -17,27 +18,36 @@ var (
 	clr_Greenish    = color.RGBA{79, 201, 109, 255}
 	clr_QuiteOrange = color.RGBA{250, 180, 30, 255}
 
-	screenX = 320
-	screenY = 280
+	scrDim = image.Point{1240 / 2, 680 / 2}
 
-	bgImage *ebiten.Image
-	imgopts = &ebiten.DrawImageOptions{}
+	texBG *ebiten.Image
 
-	texGraph   *ebiten.Image
-	infoBar    *ebiten.Image
-	KeySys     = NewKeyEventSys()
-	toggleFlag = false
+	texGraph    *ebiten.Image
+	graphPos    *image.Rectangle
+	textStatBar *ebiten.Image
+	KeySys      = NewKeyEventSys()
+	toggleFlag  = false
+	statbarIdx  = 0
+	statbarMax  = 2
 )
 
 func init() {
-	texGraph = ebiten.NewImage(screenX/2, screenY/2)
+	grhW := (scrDim.X) - (scrDim.X % (scrDim.Y / 2))
+	grpH := (scrDim.Y / 2)
+	texGraph = ebiten.NewImage(grhW, grpH)
 	texGraph.Fill(clr_QuiteOrange)
-	infoBar = ebiten.NewImage(screenX, 20)
-	bgImage = ebiten.NewImage(screenX, screenY)
-	bgImage.Fill(clr_BgPurple)
+
+	textStatBar = ebiten.NewImage(scrDim.X, 20)
+	texBG = ebiten.NewImage(scrDim.X, scrDim.Y)
+	texBG.Fill(clr_BgPurple)
 
 	KeySys.AddPressHandler(ebiten.KeySpace, func(g *Game) { toggleFlag = !toggleFlag })
 	KeySys.AddPressHandler(ebiten.KeyA, func(g *Game) {})
+	KeySys.AddPressHandler(ebiten.KeyF1, func(g *Game) { statbarIdx = (statbarIdx + 1) % statbarMax })
+}
+
+func cycleStatusBar() {
+
 }
 
 // Game implements ebiten.Game interface.
@@ -56,11 +66,17 @@ func (g *Game) Update() error {
 
 func renderSine(x int) {
 
+	// The total render space, we use the height.
 	unitpx := texGraph.Bounds().Max.Y
 
+	//
 	ymiddle := float32(float64(unitpx) / 2.0)
-	xranged := float64(x%unitpx) / float64(unitpx)     // X restrained to unit length, divided by unitlength == range of  0.0 ~ 1.0
-	sinx := math.Sin(float64(xranged) * (2 * math.Pi)) // X * (1 radians) == 0 ~ 2Pi || 0~360 Degrees
+
+	// X restrained to unit length, divided by unitlength == range of  0.0 ~ 1.0
+	xranged := float64(x%unitpx) / float64(unitpx)
+
+	// X * (1 radians) == 0 ~ 2Pi || 0~360 Degrees
+	sinx := math.Sin(float64(xranged) * (2 * math.Pi))
 
 	texGraph.Set(x, int(ymiddle*float32(sinx)+ymiddle), clr_Violet)
 }
@@ -68,7 +84,7 @@ func renderSine(x int) {
 func (g *Game) Draw(screen *ebiten.Image) {
 	// draw background
 	op := &ebiten.DrawImageOptions{}
-	screen.DrawImage(bgImage, op)
+	screen.DrawImage(texBG, op)
 
 	if toggleFlag {
 		// pause
@@ -82,22 +98,31 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	// draw center peice
-	op.GeoM.Translate(float64(screenX/4), float64(screenY/4))
+	op.GeoM.Translate(float64((scrDim.X-texGraph.Bounds().Dx())/2), float64((scrDim.Y-texGraph.Bounds().Dy())/2))
 	op.CompositeMode = ebiten.CompositeModeCopy
 	screen.DrawImage(texGraph, op)
 
 	// draw bottom
-	bottomInfoOpts := &ebiten.DrawImageOptions{}
-	bottomInfoOpts.GeoM.Translate(0, float64(screenY-20))
-	infoBar.Fill(color.RGBA{50, 0, 100, 255})
-	ebitenutil.DebugPrint(infoBar, fmt.Sprint("Frame:", g.frame, ", Graph idx:", g.count))
-	screen.DrawImage(infoBar, bottomInfoOpts)
+	optextStatBar := &ebiten.DrawImageOptions{}
+	optextStatBar.GeoM.Translate(0, float64(scrDim.Y-20))
+	textStatBar.Fill(color.RGBA{50, 0, 100, 255})
+	statbarMsg := ""
+	switch statbarIdx {
+	case 1:
+		statbarMsg = fmt.Sprintf("[Frame] %-d [Graph X] %-d", g.frame, g.count)
+	case 0:
+		fallthrough
+	default:
+		statbarMsg = fmt.Sprintf("[FPS]%6.2f [TPS]%6.2f [Frame] %d", ebiten.CurrentFPS(), ebiten.CurrentTPS(), g.frame)
+	}
+	ebitenutil.DebugPrint(textStatBar, statbarMsg)
+	screen.DrawImage(textStatBar, optextStatBar)
 }
 
 // Layout takes the outside size (e.g., the window size) and returns the (logical) screen size.
 // If you don't have to adjust the screen size with the outside size, just return a fixed size.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return screenX, screenY
+	return scrDim.X, scrDim.Y
 }
 
 func max(a, b int) int {
@@ -117,9 +142,9 @@ func min(a, b int) int {
 func main() {
 
 	game := &Game{}
-	// Sepcify the window size as you like. Here, a doulbed size is specified.
-	ebiten.SetWindowSize(screenX*4, screenY*4)
-	ebiten.SetWindowTitle("Paint Toy")
+	// Sepcify the window size as you like. Here a 4x size is specified.
+	ebiten.SetWindowSize(scrDim.X*2, scrDim.Y*2)
+	ebiten.SetWindowTitle("Sine Render")
 	// Call ebiten.RunGame to start your game loop.
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
